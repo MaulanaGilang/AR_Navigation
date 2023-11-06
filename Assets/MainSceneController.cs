@@ -9,6 +9,9 @@ using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
 using Google.XR.ARCoreExtensions;
 using Google.XR.ARCoreExtensions.Samples.Geospatial;
+using TMPro;
+using UnityEngine.Networking;
+using Unity.VisualScripting;
 
 
 #if UNITY_ANDROID
@@ -43,6 +46,11 @@ public class MainSceneController : MonoBehaviour
     public Text SnackBarText;
 
     public Text DebugText;
+
+    public GameObject ArrowPrefab;
+
+    public TMP_Dropdown LocationDropdown;
+
 
     private const string _localizingMessage = "Localizing your device to set anchor.";
 
@@ -105,26 +113,149 @@ public class MainSceneController : MonoBehaviour
     private float _configurePrepareTime = 3f;
     private GeospatialAnchorHistoryCollection _historyCollection = null;
     private List<GameObject> _anchorObjects = new List<GameObject>();
+    private List<GameObject> _arrowInstances = new List<GameObject>();
     private IEnumerator _startLocationService = null;
     private IEnumerator _asyncCheck = null;
 
-    /// <summary>
-    /// Callback handling "Get Started" button click event in Privacy Prompt.
-    /// </summary>
-    public void OnGetStartedClicked()
+    private List<Node> _nodesMock = new()
+            {
+                    new Node
+                    {
+                        id = 1,
+                        places_name = "Lokasi Anda",
+                        latitude = -7.286963908273377,
+                        longitude = 112.79832451532494,
+                        total_nodes = 0
+                    },
+                    new Node
+                    {
+                        id = 2,
+                        places_name = "Lokasi 1",
+                        latitude = -7.286830880990744,
+                        longitude = 112.79836474849103,
+                        total_nodes = 0
+                    },
+                    new Node
+                    {
+                        id = 3,
+                        places_name = "Lokasi 2",
+                        latitude = -7.286784321391746,
+                        longitude = 112.79825880126684,
+                        total_nodes = 0
+                    },
+                    new Node
+                    {
+                        id = 4,
+                        places_name = "Lokasi 3",
+                        latitude = -7.286841523181405,
+                        longitude = 112.79782160115107,
+                        total_nodes = 0
+                    },
+                };
+
+
+    public void OnStartNavigationClicked()
     {
-        PlayerPrefs.SetInt(_hasDisplayedPrivacyPromptKey, 1);
-        PlayerPrefs.Save();
-        SwitchToARView(true);
+        // PlayerPrefs.SetInt(_hasDisplayedPrivacyPromptKey, 1);
+        // PlayerPrefs.Save();
+
+        var destinationId = LocationDropdown.GetComponent<DropdownPopulator>().GetSelectedPlaceId();
+
+        Debug.Log("Selected location: " + destinationId);
+
+        if (destinationId == -1)
+        {
+            Debug.LogError("Invalid dropdown index!");
+            // Toast.Show("Pilih lokasi terlebih dahulu");
+            return;
+        }
+
+
+        var location = Input.location.lastData;
+
+        var latitude = -7.28454511607389;
+        var longitude = 112.79530739674819;
+
+        // if (EarthManager.EarthTrackingState != TrackingState.Tracking)
+        // {
+        //     Debug.LogError("Earth is not tracking!");
+        //     // Toast.Show("Geospatial belum siap");
+        //     return;
+        // }
+
+        StartCoroutine(CallAPI(latitude, longitude, destinationId));
     }
 
-    /// <summary>
-    /// Callback handling "Learn More" Button click event in Privacy Prompt.
-    /// </summary>
-    public void OnLearnMoreClicked()
+    private IEnumerator CallAPI(double latitude, double longitude, int destinationId)
     {
-        Application.OpenURL(
-            "https://developers.google.com/ar/data-privacy");
+        string apiURL = "https://backend-protel-nasdem.vercel.app/api/route";
+        apiURL += $"?latitude={latitude}&longitude={longitude}&endId={destinationId}";
+
+        using var request = UnityWebRequest.Get(apiURL);
+        yield return request.SendWebRequest();
+
+        // if (request.result == UnityWebRequest.Result.ConnectionError || request.result == UnityWebRequest.Result.ProtocolError)
+        // {
+        //     var jsonResponse = request.downloadHandler.text;
+        //     var error = JsonUtility.FromJson<Error>(jsonResponse);
+        //     // Toast.Show(error.error);
+        //     Debug.LogError($"Error calling API: {request.error}");
+        // }
+        // else
+        // {
+        //     var jsonResponse = request.downloadHandler.text;
+        //     var nodes = JsonUtility.FromJson<NodeList>(jsonResponse).nodes;
+        // }
+
+        var nodes = _nodesMock.ToArray();
+
+        for (int i = 0; i < nodes.Length; i++)
+        {
+            StartCoroutine(PlaceAnchor(nodes[i], i == nodes.Length - 1));
+        }
+
+        ShowChooseDestination(false);
+    }
+
+    private IEnumerator PlaceAnchor(Node node, bool isDestination = false)
+    {
+        ResolveAnchorOnTerrainPromise promise = AnchorManager.ResolveAnchorOnTerrainAsync(node.latitude, node.longitude, 0.5f, Quaternion.identity);
+
+        yield return promise;
+
+        var result = promise.Result;
+
+        if (result.TerrainAnchorState == TerrainAnchorState.Success && result.Anchor != null)
+        {
+            GameObject arrowInstance = Instantiate(ArrowPrefab, result.Anchor.gameObject.transform);
+            _arrowInstances.Add(arrowInstance);
+            _anchorObjects.Add(result.Anchor.gameObject);
+
+            // If this is not the first arrow, orient the previous arrow towards this one
+            if (_arrowInstances.Count > 1)
+            {
+                OrientArrowTowards(_arrowInstances[_arrowInstances.Count - 2], arrowInstance.transform.position);
+            }
+        }
+        else
+        {
+            Debug.Log("Anchor resolution failed.");
+        }
+
+        yield return null;
+    }
+
+    // Function to orient an arrow to look at the next arrow's position
+    private void OrientArrowTowards(GameObject arrow, Vector3 nextPosition)
+    {
+        Vector3 targetDirection = nextPosition - arrow.transform.position;
+        Quaternion targetRotation = Quaternion.LookRotation(targetDirection, Vector3.up);
+        arrow.transform.rotation = targetRotation;
+    }
+
+    private void ShowChooseDestination(bool show)
+    {
+        PrivacyPromptCanvas.SetActive(show);
     }
 
     public void OnContinueClicked()
@@ -132,10 +263,6 @@ public class MainSceneController : MonoBehaviour
         VPSCheckCanvas.SetActive(false);
     }
 
-    /// <summary>
-    /// Callback handling "Geometry" toggle event in AR View.
-    /// </summary>
-    /// <param name="enabled">Whether to enable Streetscape Geometry visibility.</param>
     public void OnGeometryToggled(bool enabled)
     {
         _streetscapeGeometryVisibility = enabled;
@@ -145,20 +272,13 @@ public class MainSceneController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Unity's Awake() method.
-    /// </summary>
     public void Awake()
     {
-        // Lock screen to portrait.
         Screen.autorotateToLandscapeLeft = false;
         Screen.autorotateToLandscapeRight = false;
         Screen.autorotateToPortraitUpsideDown = false;
         Screen.orientation = ScreenOrientation.Portrait;
 
-        // Enable geospatial sample to target 60fps camera capture frame rate
-        // on supported devices.
-        // Note, Application.targetFrameRate is ignored when QualitySettings.vSyncCount != 0.
         Application.targetFrameRate = 60;
 
         if (SessionOrigin == null)
@@ -177,9 +297,6 @@ public class MainSceneController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Unity's OnEnable() method.
-    /// </summary>
     public void OnEnable()
     {
         _startLocationService = StartLocationService();
@@ -196,12 +313,9 @@ public class MainSceneController : MonoBehaviour
         LoadGeospatialAnchorHistory();
         _shouldResolvingHistory = _historyCollection.Collection.Count > 0;
 
-        SwitchToARView(PlayerPrefs.HasKey(_hasDisplayedPrivacyPromptKey));
+        SwitchToARView(true);
     }
 
-    /// <summary>
-    /// Unity's OnDisable() method.
-    /// </summary>
     public void OnDisable()
     {
         StopCoroutine(_asyncCheck);
@@ -220,9 +334,6 @@ public class MainSceneController : MonoBehaviour
         SaveGeospatialAnchorHistory();
     }
 
-    /// <summary>
-    /// Unity's Update() method.
-    /// </summary>
     public void Update()
     {
         if (!_isInARView)
@@ -392,7 +503,7 @@ public class MainSceneController : MonoBehaviour
         Session.gameObject.SetActive(enable);
         ARCoreExtensions.gameObject.SetActive(enable);
         ARViewCanvas.SetActive(enable);
-        PrivacyPromptCanvas.SetActive(!enable);
+        // PrivacyPromptCanvas.SetActive(!enable);
         VPSCheckCanvas.SetActive(false);
         if (enable && _asyncCheck == null)
         {
@@ -592,5 +703,27 @@ public class MainSceneController : MonoBehaviour
             $"  VerticalAcc: {pose.VerticalAccuracy:F2}\n" +
             $". EunRotation: {pose.EunRotation:F2}\n" +
             $"  OrientationYawAcc: {pose.OrientationYawAccuracy:F2}";
+    }
+
+    [System.Serializable]
+    private class Node
+    {
+        public int id;
+        public string places_name;
+        public double latitude;
+        public double longitude;
+        public int total_nodes;
+    }
+
+    [System.Serializable]
+    private class NodeList
+    {
+        public Node[] nodes;
+    }
+
+    [System.Serializable]
+    private class Error
+    {
+        public string error;
     }
 }
