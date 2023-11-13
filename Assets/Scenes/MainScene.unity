@@ -1451,75 +1451,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 741728438}
   m_CullTransparentMesh: 0
---- !u!1001 &782628375
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 0}
-    m_Modifications:
-    - target: {fileID: 60440078056300718, guid: bc845d764b5d34d40a270201e331b78d, type: 3}
-      propertyPath: m_LocalScale.x
-      value: 100
-      objectReference: {fileID: 0}
-    - target: {fileID: 60440078056300718, guid: bc845d764b5d34d40a270201e331b78d, type: 3}
-      propertyPath: m_LocalScale.y
-      value: 100
-      objectReference: {fileID: 0}
-    - target: {fileID: 60440078056300718, guid: bc845d764b5d34d40a270201e331b78d, type: 3}
-      propertyPath: m_LocalScale.z
-      value: 100
-      objectReference: {fileID: 0}
-    - target: {fileID: 60440078056300718, guid: bc845d764b5d34d40a270201e331b78d, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -193.76868
-      objectReference: {fileID: 0}
-    - target: {fileID: 60440078056300718, guid: bc845d764b5d34d40a270201e331b78d, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 60440078056300718, guid: bc845d764b5d34d40a270201e331b78d, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: -111.13924
-      objectReference: {fileID: 0}
-    - target: {fileID: 60440078056300718, guid: bc845d764b5d34d40a270201e331b78d, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 60440078056300718, guid: bc845d764b5d34d40a270201e331b78d, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 60440078056300718, guid: bc845d764b5d34d40a270201e331b78d, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 60440078056300718, guid: bc845d764b5d34d40a270201e331b78d, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 60440078056300718, guid: bc845d764b5d34d40a270201e331b78d, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 60440078056300718, guid: bc845d764b5d34d40a270201e331b78d, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 60440078056300718, guid: bc845d764b5d34d40a270201e331b78d, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 836940841641474580, guid: bc845d764b5d34d40a270201e331b78d, type: 3}
-      propertyPath: m_Name
-      value: Arrow Prefab
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: bc845d764b5d34d40a270201e331b78d, type: 3}
 --- !u!1 &784919450
 GameObject:
   m_ObjectHideFlags: 0
@@ -2224,7 +2155,7 @@ MonoBehaviour:
   RaycastManager: {fileID: 0}
   EarthManager: {fileID: 1111605826}
   ARCoreExtensions: {fileID: 654780236}
-  PrivacyPromptCanvas: {fileID: 555297193}
+  SelectDestinationCanvas: {fileID: 555297193}
   VPSCheckCanvas: {fileID: 1182980694}
   ARViewCanvas: {fileID: 1604609914}
   SnackBarText: {fileID: 1487363630}
@@ -4010,4 +3941,3 @@ SceneRoots:
   - {fileID: 2055063501}
   - {fileID: 703165210}
   - {fileID: 1260325018}
-  - {fileID: 782628375}

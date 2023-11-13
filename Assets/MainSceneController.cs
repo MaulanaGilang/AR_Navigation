@@ -37,7 +37,7 @@ public class MainSceneController : MonoBehaviour
 
     [Header("UI Elements")]
 
-    public GameObject PrivacyPromptCanvas;
+    public GameObject SelectDestinationCanvas;
 
     public GameObject VPSCheckCanvas;
 
@@ -87,8 +87,6 @@ public class MainSceneController : MonoBehaviour
 
     private bool _streetscapeGeometryVisibility = false;
 
-    private int _buildingMatIndex = 0;
-
     private Dictionary<TrackableId, GameObject> _streetscapegeometryGOs =
         new Dictionary<TrackableId, GameObject>();
 
@@ -108,12 +106,9 @@ public class MainSceneController : MonoBehaviour
     private bool _isReturning = false;
     private bool _isLocalizing = false;
     private bool _enablingGeospatial = false;
-    private bool _shouldResolvingHistory = false;
     private float _localizationPassedTime = 0f;
     private float _configurePrepareTime = 3f;
-    private GeospatialAnchorHistoryCollection _historyCollection = null;
     private List<GameObject> _anchorObjects = new List<GameObject>();
-    private List<GameObject> _arrowInstances = new List<GameObject>();
     private IEnumerator _startLocationService = null;
     private IEnumerator _asyncCheck = null;
 
@@ -173,15 +168,20 @@ public class MainSceneController : MonoBehaviour
 
         var location = Input.location.lastData;
 
-        var latitude = -7.28454511607389;
-        var longitude = 112.79530739674819;
+        // var latitude = -7.28454511607389;
+        // var longitude = 112.79530739674819;
 
-        // if (EarthManager.EarthTrackingState != TrackingState.Tracking)
-        // {
-        //     Debug.LogError("Earth is not tracking!");
-        //     // Toast.Show("Geospatial belum siap");
-        //     return;
-        // }
+        var latitude = location.latitude;
+        var longitude = location.longitude;
+
+        Debug.Log($"Current location: {latitude}, {longitude}");
+
+        if (EarthManager.EarthTrackingState != TrackingState.Tracking)
+        {
+            Debug.LogError("Earth is not tracking!");
+            // Toast.Show("Geospatial belum siap");
+            return;
+        }
 
         StartCoroutine(CallAPI(latitude, longitude, destinationId));
     }
@@ -194,27 +194,30 @@ public class MainSceneController : MonoBehaviour
         using var request = UnityWebRequest.Get(apiURL);
         yield return request.SendWebRequest();
 
-        // if (request.result == UnityWebRequest.Result.ConnectionError || request.result == UnityWebRequest.Result.ProtocolError)
-        // {
-        //     var jsonResponse = request.downloadHandler.text;
-        //     var error = JsonUtility.FromJson<Error>(jsonResponse);
-        //     // Toast.Show(error.error);
-        //     Debug.LogError($"Error calling API: {request.error}");
-        // }
-        // else
-        // {
-        //     var jsonResponse = request.downloadHandler.text;
-        //     var nodes = JsonUtility.FromJson<NodeList>(jsonResponse).nodes;
-        // }
-
-        var nodes = _nodesMock.ToArray();
-
-        for (int i = 0; i < nodes.Length; i++)
+        if (request.result == UnityWebRequest.Result.ConnectionError || request.result == UnityWebRequest.Result.ProtocolError)
         {
-            StartCoroutine(PlaceAnchor(nodes[i], i == nodes.Length - 1));
+            var jsonResponse = request.downloadHandler.text;
+            var error = JsonUtility.FromJson<Error>(jsonResponse);
+            // Toast.Show(error.error);
+            Debug.LogError($"Error calling API: {request.error}");
+        }
+        else
+        {
+            var jsonResponse = request.downloadHandler.text;
+            Debug.Log($"Response: {jsonResponse}");
+            var nodes = JsonUtility.FromJson<NodeList>(jsonResponse).nodes;
+            // }
+
+            // var nodes = _nodesMock.ToArray();
+
+            for (int i = 0; i < nodes.Length; i++)
+            {
+                StartCoroutine(PlaceAnchor(nodes[i], i == nodes.Length - 1));
+            }
+
+            ShowChooseDestination(false);
         }
 
-        ShowChooseDestination(false);
     }
 
     private IEnumerator PlaceAnchor(Node node, bool isDestination = false)
@@ -227,15 +230,26 @@ public class MainSceneController : MonoBehaviour
 
         if (result.TerrainAnchorState == TerrainAnchorState.Success && result.Anchor != null)
         {
-            GameObject arrowInstance = Instantiate(ArrowPrefab, result.Anchor.gameObject.transform);
-            _arrowInstances.Add(arrowInstance);
-            _anchorObjects.Add(result.Anchor.gameObject);
+            Debug.Log($"Anchor resolved successfully. {node.id}");
 
-            // If this is not the first arrow, orient the previous arrow towards this one
-            if (_arrowInstances.Count > 1)
+
+            GameObject arrowInstance = Instantiate(ArrowPrefab, result.Anchor.gameObject.transform);
+
+            arrowInstance.transform.parent = result.Anchor.gameObject.transform;
+
+            if (isDestination)
             {
-                OrientArrowTowards(_arrowInstances[_arrowInstances.Count - 2], arrowInstance.transform.position);
+                arrowInstance.transform.rotation = Quaternion.Euler(0, 0, 90);
             }
+            else if (_anchorObjects.Count > 1)
+            {
+                Transform previousArrowTransform = _anchorObjects[^2].transform;
+
+                previousArrowTransform.LookAt(result.Anchor.gameObject.transform, Vector3.up);
+                previousArrowTransform.rotation = Quaternion.Euler(0, previousArrowTransform.rotation.eulerAngles.y + 90, 0);
+            }
+
+            _anchorObjects.Add(result.Anchor.gameObject);
         }
         else
         {
@@ -245,17 +259,9 @@ public class MainSceneController : MonoBehaviour
         yield return null;
     }
 
-    // Function to orient an arrow to look at the next arrow's position
-    private void OrientArrowTowards(GameObject arrow, Vector3 nextPosition)
-    {
-        Vector3 targetDirection = nextPosition - arrow.transform.position;
-        Quaternion targetRotation = Quaternion.LookRotation(targetDirection, Vector3.up);
-        arrow.transform.rotation = targetRotation;
-    }
-
     private void ShowChooseDestination(bool show)
     {
-        PrivacyPromptCanvas.SetActive(show);
+        SelectDestinationCanvas.SetActive(show);
     }
 
     public void OnContinueClicked()
@@ -310,9 +316,6 @@ public class MainSceneController : MonoBehaviour
         _isLocalizing = true;
         SnackBarText.text = _localizingMessage;
 
-        LoadGeospatialAnchorHistory();
-        _shouldResolvingHistory = _historyCollection.Collection.Count > 0;
-
         SwitchToARView(true);
     }
 
@@ -331,7 +334,6 @@ public class MainSceneController : MonoBehaviour
         }
 
         _anchorObjects.Clear();
-        SaveGeospatialAnchorHistory();
     }
 
     public void Update()
@@ -457,45 +459,6 @@ public class MainSceneController : MonoBehaviour
         }
     }
 
-    private void LoadGeospatialAnchorHistory()
-    {
-        if (PlayerPrefs.HasKey(_persistentGeospatialAnchorsStorageKey))
-        {
-            _historyCollection = JsonUtility.FromJson<GeospatialAnchorHistoryCollection>(
-                PlayerPrefs.GetString(_persistentGeospatialAnchorsStorageKey));
-
-            // Remove all records created more than 24 hours and update stored history.
-            DateTime current = DateTime.Now;
-            _historyCollection.Collection.RemoveAll(
-                data => current.Subtract(data.CreatedTime).Days > 0);
-            PlayerPrefs.SetString(_persistentGeospatialAnchorsStorageKey,
-                JsonUtility.ToJson(_historyCollection));
-            PlayerPrefs.Save();
-        }
-        else
-        {
-            _historyCollection = new GeospatialAnchorHistoryCollection();
-        }
-    }
-
-    private void SaveGeospatialAnchorHistory()
-    {
-        // Sort the data from latest record to earliest record.
-        _historyCollection.Collection.Sort((left, right) =>
-            right.CreatedTime.CompareTo(left.CreatedTime));
-
-        // Remove the earliest data if the capacity exceeds storage limit.
-        if (_historyCollection.Collection.Count > _storageLimit)
-        {
-            _historyCollection.Collection.RemoveRange(
-                _storageLimit, _historyCollection.Collection.Count - _storageLimit);
-        }
-
-        PlayerPrefs.SetString(
-            _persistentGeospatialAnchorsStorageKey, JsonUtility.ToJson(_historyCollection));
-        PlayerPrefs.Save();
-    }
-
     private void SwitchToARView(bool enable)
     {
         _isInARView = enable;
@@ -503,7 +466,6 @@ public class MainSceneController : MonoBehaviour
         Session.gameObject.SetActive(enable);
         ARCoreExtensions.gameObject.SetActive(enable);
         ARViewCanvas.SetActive(enable);
-        // PrivacyPromptCanvas.SetActive(!enable);
         VPSCheckCanvas.SetActive(false);
         if (enable && _asyncCheck == null)
         {
