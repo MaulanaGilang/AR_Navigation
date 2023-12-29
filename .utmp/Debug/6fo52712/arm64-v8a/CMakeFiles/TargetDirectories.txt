@@ -1,0 +1,5 @@
+D:/Data E/ITS/Sem 7/Proyek Telematika/ARGPSv2/.utmp/Debug/6fo52712/arm64-v8a/CMakeFiles/edit_cache.dir
+D:/Data E/ITS/Sem 7/Proyek Telematika/ARGPSv2/.utmp/Debug/6fo52712/arm64-v8a/CMakeFiles/rebuild_cache.dir
+D:/Data E/ITS/Sem 7/Proyek Telematika/ARGPSv2/.utmp/Debug/6fo52712/arm64-v8a/FramePacing/CMakeFiles/swappywrapper.dir
+D:/Data E/ITS/Sem 7/Proyek Telematika/ARGPSv2/.utmp/Debug/6fo52712/arm64-v8a/FramePacing/CMakeFiles/edit_cache.dir
+D:/Data E/ITS/Sem 7/Proyek Telematika/ARGPSv2/.utmp/Debug/6fo52712/arm64-v8a/FramePacing/CMakeFiles/rebuild_cache.dir

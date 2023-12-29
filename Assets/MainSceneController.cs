@@ -12,6 +12,8 @@ using Google.XR.ARCoreExtensions.Samples.Geospatial;
 using TMPro;
 using UnityEngine.Networking;
 using Unity.VisualScripting;
+using System.Linq;
+
 
 
 #if UNITY_ANDROID
@@ -43,11 +45,14 @@ public class MainSceneController : MonoBehaviour
 
     public GameObject ARViewCanvas;
 
+    public GameObject EnableCameraCanvas;
+
     public Text SnackBarText;
 
     public Text DebugText;
 
     public GameObject ArrowPrefab;
+    public GameObject FinishPrefab;
 
     public TMP_Dropdown LocationDropdown;
 
@@ -108,9 +113,13 @@ public class MainSceneController : MonoBehaviour
     private bool _enablingGeospatial = false;
     private float _localizationPassedTime = 0f;
     private float _configurePrepareTime = 3f;
-    private List<GameObject> _anchorObjects = new List<GameObject>();
+    private SortedDictionary<int, GameObject> _anchorObjects = new SortedDictionary<int, GameObject>();
+    private SortedDictionary<int, GameObject> _arrowObjects = new SortedDictionary<int, GameObject>();
     private IEnumerator _startLocationService = null;
     private IEnumerator _asyncCheck = null;
+    private bool _needToPlaceAnchor = false;
+    private bool _alreadyRotated = false;
+    private NodeList _nodes = null;
 
     private List<Node> _nodesMock = new()
             {
@@ -151,9 +160,6 @@ public class MainSceneController : MonoBehaviour
 
     public void OnStartNavigationClicked()
     {
-        // PlayerPrefs.SetInt(_hasDisplayedPrivacyPromptKey, 1);
-        // PlayerPrefs.Save();
-
         var destinationId = LocationDropdown.GetComponent<DropdownPopulator>().GetSelectedPlaceId();
 
         Debug.Log("Selected location: " + destinationId);
@@ -165,23 +171,11 @@ public class MainSceneController : MonoBehaviour
             return;
         }
 
-
         var location = Input.location.lastData;
-
-        // var latitude = -7.28454511607389;
-        // var longitude = 112.79530739674819;
-
         var latitude = location.latitude;
         var longitude = location.longitude;
 
         Debug.Log($"Current location: {latitude}, {longitude}");
-
-        if (EarthManager.EarthTrackingState != TrackingState.Tracking)
-        {
-            Debug.LogError("Earth is not tracking!");
-            // Toast.Show("Geospatial belum siap");
-            return;
-        }
 
         StartCoroutine(CallAPI(latitude, longitude, destinationId));
     }
@@ -204,25 +198,19 @@ public class MainSceneController : MonoBehaviour
         else
         {
             var jsonResponse = request.downloadHandler.text;
-            Debug.Log($"Response: {jsonResponse}");
-            var nodes = JsonUtility.FromJson<NodeList>(jsonResponse).nodes;
-            // }
-
-            // var nodes = _nodesMock.ToArray();
-
-            for (int i = 0; i < nodes.Length; i++)
-            {
-                StartCoroutine(PlaceAnchor(nodes[i], i == nodes.Length - 1));
-            }
+            // Debug.Log($"Response: {jsonResponse}");
+            _nodes = JsonUtility.FromJson<NodeList>(jsonResponse);
+            _needToPlaceAnchor = true;
 
             ShowChooseDestination(false);
+            EnableCameraCanvas.SetActive(true);
         }
 
     }
 
-    private IEnumerator PlaceAnchor(Node node, bool isDestination = false)
+    private IEnumerator PlaceAnchor(Node node, int order, bool isDestination = false)
     {
-        ResolveAnchorOnTerrainPromise promise = AnchorManager.ResolveAnchorOnTerrainAsync(node.latitude, node.longitude, 0.5f, Quaternion.identity);
+        ResolveAnchorOnTerrainPromise promise = AnchorManager.ResolveAnchorOnTerrainAsync(node.latitude, node.longitude, isDestination ? 0f : 0.5f, Quaternion.identity);
 
         yield return promise;
 
@@ -232,24 +220,12 @@ public class MainSceneController : MonoBehaviour
         {
             Debug.Log($"Anchor resolved successfully. {node.id}");
 
-
-            GameObject arrowInstance = Instantiate(ArrowPrefab, result.Anchor.gameObject.transform);
+            GameObject arrowInstance = Instantiate(isDestination ? FinishPrefab : ArrowPrefab, result.Anchor.transform.position, Quaternion.identity);
 
             arrowInstance.transform.parent = result.Anchor.gameObject.transform;
 
-            if (isDestination)
-            {
-                arrowInstance.transform.rotation = Quaternion.Euler(0, 0, 90);
-            }
-            else if (_anchorObjects.Count > 1)
-            {
-                Transform previousArrowTransform = _anchorObjects[^2].transform;
-
-                previousArrowTransform.LookAt(result.Anchor.gameObject.transform, Vector3.up);
-                previousArrowTransform.rotation = Quaternion.Euler(0, previousArrowTransform.rotation.eulerAngles.y + 90, 0);
-            }
-
-            _anchorObjects.Add(result.Anchor.gameObject);
+            _anchorObjects.Add(order, result.Anchor.gameObject);
+            _arrowObjects.Add(order, arrowInstance);
         }
         else
         {
@@ -315,7 +291,11 @@ public class MainSceneController : MonoBehaviour
         _localizationPassedTime = 0f;
         _isLocalizing = true;
         SnackBarText.text = _localizingMessage;
+    }
 
+    public void OnEnableCameraClicked()
+    {
+        EnableCameraCanvas.SetActive(false);
         SwitchToARView(true);
     }
 
@@ -330,7 +310,7 @@ public class MainSceneController : MonoBehaviour
 
         foreach (var anchor in _anchorObjects)
         {
-            Destroy(anchor);
+            Destroy(anchor.Value);
         }
 
         _anchorObjects.Clear();
@@ -431,7 +411,7 @@ public class MainSceneController : MonoBehaviour
                 _localizationPassedTime = 0f;
                 foreach (var go in _anchorObjects)
                 {
-                    go.SetActive(false);
+                    go.Value.SetActive(false);
                 }
             }
 
@@ -452,10 +432,40 @@ public class MainSceneController : MonoBehaviour
             _isLocalizing = false;
             _localizationPassedTime = 0f;
             SnackBarText.text = _localizationSuccessMessage;
+
+            if (_needToPlaceAnchor)
+            {
+                _needToPlaceAnchor = false;
+                _alreadyRotated = false;
+
+                var nodes = _nodes.nodes;
+
+                for (int i = 0; i < nodes.Length; i++)
+                {
+                    StartCoroutine(PlaceAnchor(nodes[i], i, i == nodes.Length - 1));
+                }
+            }
+
             foreach (var go in _anchorObjects)
             {
-                go.SetActive(true);
+                go.Value.SetActive(true);
             }
+        }
+
+        Debug.Log("Nodes length: " + _nodes.nodes.Length);
+        Debug.Log("Arrow objects count: " + _arrowObjects.Count);
+        Debug.Log("Anchor objects count: " + _anchorObjects.Count);
+
+        if (_nodes.nodes.Length == _arrowObjects.Count && !_alreadyRotated)
+        {
+            Debug.Log("Rotating arrows");
+            for (int i = 0; i < _arrowObjects.Count - 1; i++)
+            {
+                _arrowObjects[i].transform.LookAt(_arrowObjects[i + 1].transform, Vector3.up);
+                _arrowObjects[i].transform.rotation = Quaternion.Euler(0, _arrowObjects[i].transform.rotation.eulerAngles.y + 90, 0);
+            }
+
+            _alreadyRotated = true;
         }
     }
 
@@ -534,7 +544,7 @@ public class MainSceneController : MonoBehaviour
 
         Debug.LogFormat("VPS Availability at ({0}, {1}): {2}",
             location.latitude, location.longitude, vpsAvailabilityPromise.Result);
-        VPSCheckCanvas.SetActive(vpsAvailabilityPromise.Result != VpsAvailability.Available);
+        //VPSCheckCanvas.SetActive(vpsAvailabilityPromise.Result != VpsAvailability.Available);
     }
 
     private IEnumerator StartLocationService()
@@ -575,10 +585,24 @@ public class MainSceneController : MonoBehaviour
 
     private void LifecycleUpdate()
     {
-        // Pressing 'back' button quits the app.
-        if (Input.GetKeyUp(KeyCode.Escape))
+        if (Input.GetKey(KeyCode.Escape) && _isInARView)
         {
-            Application.Quit();
+            ARViewCanvas.SetActive(false);
+            _isInARView = false;
+            ShowChooseDestination(true);
+            _nodes = null;
+            _needToPlaceAnchor = false;
+
+            foreach (var anchor in _anchorObjects)
+            {
+                Destroy(anchor.Value);
+            }
+
+            _anchorObjects.Clear();
+        }
+        else if (Input.GetKey(KeyCode.Escape) && !_isInARView)
+        {
+            QuitApplication();
         }
 
         if (_isReturning)

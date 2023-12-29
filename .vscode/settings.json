@@ -56,5 +56,5 @@
         "temp/": true,
         "Temp/": true
     },
-    "dotnet.defaultSolution": "FFF.sln"
+    "dotnet.defaultSolution": "ARGPSv2.sln"
 }
